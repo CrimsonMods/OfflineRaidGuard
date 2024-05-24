@@ -1,7 +1,10 @@
-﻿using ProjectM;
+﻿using OfflineRaidGuard.Models;
+using ProjectM;
 using ProjectM.Network;
 using ProjectM.Scripting;
 using Stunlock.Core;
+using Stunlock.Network;
+using System;
 using System.Collections.Generic;
 using Unity.Collections;
 using Unity.Entities;
@@ -44,8 +47,46 @@ public static class Helper
         foreach (var userEntity in userEntities)
         {
             var userData = Plugin.Server.EntityManager.GetComponentData<User>(userEntity);
-            PlayerData playerData = new PlayerData(userData.CharacterName, userData.PlatformId, userData.IsConnected, userEntity, userData.LocalCharacter._Entity);
-            Cache.PlayerCache[userEntity] = playerData;
+            Player player = new Player(userData.PlatformId, userData.CharacterName.ToString(), userData.IsConnected, userEntity, userData.LocalCharacter._Entity);
+            Cache.PlayerCache.Add(userEntity, player);
+        }
+    }
+
+    public static void UserConnected(ServerBootstrapSystem sender, NetConnectionId netConnectionId)
+    {
+        try
+        {
+            var userIndex = sender._NetEndPointToApprovedUserIndex[netConnectionId];
+            var serverClient = sender._ApprovedUsersLookup[userIndex];
+
+            UpdatePlayerCache(serverClient.UserEntity);
+        }
+        catch (Exception e)
+        {
+            Plugin.Logger.LogWarning($"Error while updating user (Connected) to cache {e.Message}");
+        }
+    }
+
+    public static void UserDisconnected(ServerBootstrapSystem sender, NetConnectionId netConnectionId, ConnectionStatusChangeReason connectionStatusReason, string extraData)
+    {
+        try
+        {
+            var userIndex = sender._NetEndPointToApprovedUserIndex[netConnectionId];
+            var serverClient = sender._ApprovedUsersLookup[userIndex];
+            var userEntity = serverClient.UserEntity;
+
+            if (Cache.PlayerCache.ContainsKey(userEntity))
+            {
+                UpdatePlayerCache(userEntity, true);
+            }
+            else
+            {
+                Plugin.Logger.LogWarning($"Wasn't able to find user in cache.");
+            }
+        }
+        catch (Exception e)
+        {
+            Plugin.Logger.LogWarning($"Error while updating user (Disconnected) to cache {e.Message}");
         }
     }
 
@@ -53,12 +94,14 @@ public static class Helper
     {
         var userData = Plugin.Server.EntityManager.GetComponentData<User>(userEntity);
         if (userData.CharacterName.IsEmpty) return;
+        
         if (forceOffline)
         {
             userData.IsConnected = false;
         }
-        PlayerData playerData = new PlayerData(userData.CharacterName, userData.PlatformId, userData.IsConnected, userEntity, userData.LocalCharacter._Entity);
-        Cache.PlayerCache[userEntity] = playerData;
+
+        Player player = new Player(userData.PlatformId, userData.CharacterName.ToString(), userData.IsConnected, userEntity, userData.LocalCharacter._Entity);
+        Cache.PlayerCache[userEntity] = player;
     }
 
     public static PrefabGUID GetPrefabGUID(Entity entity)

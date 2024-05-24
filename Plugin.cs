@@ -6,11 +6,14 @@ using HarmonyLib;
 using Unity.Entities;
 using Bloodstone.API;
 using OfflineRaidGuard.Utils;
+using Bloody.Core;
+using Bloody.Core.API.v1;
 
 namespace OfflineRaidGuard;
 
 [BepInPlugin(MyPluginInfo.PLUGIN_GUID, MyPluginInfo.PLUGIN_NAME, MyPluginInfo.PLUGIN_VERSION)]
 [BepInDependency("gg.deca.Bloodstone")]
+[BepInDependency("trodi.Bloody.Core")]
 [Bloodstone.API.Reloadable]
 public class Plugin : BasePlugin, IRunOnInitialized
 {
@@ -25,6 +28,9 @@ public class Plugin : BasePlugin, IRunOnInitialized
     public static ManualLogSource Logger;
 
     private static World _serverWorld;
+
+    public static SystemsCore SystemsCore;
+
     public static World Server
     {
         get
@@ -69,31 +75,43 @@ public class Plugin : BasePlugin, IRunOnInitialized
         harmony = new Harmony(MyPluginInfo.PLUGIN_GUID);
         harmony.PatchAll();
 
+        EventsHandlerSystem.OnInitialize += GameDataOnInitialize;
+        EventsHandlerSystem.OnDestroy += GameDataOnDestroy;
+
         Log.LogInfo($"Plugin {MyPluginInfo.PLUGIN_NAME} is loaded!");
     }
 
     public override bool Unload()
     {
+        EventsHandlerSystem.OnInitialize -= GameDataOnInitialize;
+        EventsHandlerSystem.OnDestroy -= GameDataOnDestroy;
+
         Config.Clear();
-        harmony.UnpatchSelf();
+        harmony?.UnpatchSelf();
         return true;
-    }
-
-    public static void Initialize()
-    {
-        //-- Always Re-Initialize
-        Helper.GetServerGameManager(out Helper.SGM);
-        Helper.CreatePlayerCache();
-
-        //-- Initialize Only Once
-        if (!isInitialized)
-        {
-            isInitialized = true;
-        }
     }
 
     public void OnGameInitialized()
     {
-        Initialize();
+        if (!VWorld.IsServer) return;
+    }
+
+    private static void GameDataOnInitialize(World world)
+    {
+        SystemsCore = Core.SystemsCore;
+
+        Helper.GetServerGameManager(out Helper.SGM);
+        Helper.CreatePlayerCache();
+
+        isInitialized = true;
+
+        EventsHandlerSystem.OnUserConnected += Helper.UserConnected;
+        EventsHandlerSystem.OnUserDisconnected += Helper.UserDisconnected;
+
+    }
+
+    private static void GameDataOnDestroy()
+    { 
+    
     }
 }

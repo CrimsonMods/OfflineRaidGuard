@@ -1,9 +1,11 @@
-﻿using HarmonyLib;
+﻿using Bloodstone.API;
+using HarmonyLib;
 using OfflineRaidGuard.Utils;
 using ProjectM;
 using ProjectM.CastleBuilding;
 using ProjectM.Gameplay.Systems;
 using System;
+using System.IO;
 using Unity.Entities;
 
 namespace OfflineRaidGuard.Hooks;
@@ -17,37 +19,64 @@ internal class StatChange
     {
         if (!Plugin.EnableMod.Value) return;
 
-        if (!__instance.EntityManager.HasComponent<CastleHeartConnection>(statChange.Entity)) return;
-        var heartEntity = __instance.EntityManager.GetComponentData<CastleHeartConnection>(statChange.Entity).CastleHeartEntity._Entity;
+        if (!statChange.HasFlag(StatChangeFlag.AnnounceCastleAttack))
+        {
+            return;
+        }
 
-        if (!__instance.EntityManager.HasComponent<CastleHeart>(heartEntity)) return;
-        var castleHeart = __instance.EntityManager.GetComponentData<CastleHeart>(heartEntity);
+        EntityComponentDumper("statChange.json", statChange.Entity);
 
-        if (castleHeart.State != CastleHeartState.IsProcessing) return;
+        if (!VWorld.Server.EntityManager.HasComponent<CastleHeartConnection>(statChange.Entity))
+        {
+            Plugin.Logger.LogWarning($"No Castle Heart Connection Found");
+            return;
+        }
+        
+        var heartEntity = VWorld.Server.EntityManager.GetComponentData<CastleHeartConnection>(statChange.Entity).CastleHeartEntity._Entity;
+
+        if (!VWorld.Server.EntityManager.HasComponent<CastleHeart>(heartEntity))
+        {
+            Plugin.Logger.LogWarning($"No Castle Heart Found");
+            return;
+        } 
+        var castleHeart = VWorld.Server.EntityManager.GetComponentData<CastleHeart>(heartEntity);
+
+        if (!castleHeart.State.HasFlag(CastleHeartState.IsProcessing))
+        {
+            Plugin.Logger.LogWarning($"Castle State ({castleHeart.State}) != IsProcessing; Castle must be decaying");
+            return;
+        }
 
         if (!Cache.PlyonOwnerCache.TryGetValue(heartEntity, out Entity userEntity))
         {
-            userEntity = __instance.EntityManager.GetComponentData<UserOwner>(heartEntity).Owner._Entity;
+            Plugin.Logger.LogWarning($"PlyonOwnerCache did not contain this heart. Finding Owner");
+            userEntity = VWorld.Server.EntityManager.GetComponentData<UserOwner>(heartEntity).Owner._Entity;
         }
 
-        Cache.PlayerCache.TryGetValue(userEntity, out var playerData);
-
-        if (playerData.IsConnected == false)
+        if (Cache.PlayerCache.TryGetValue(userEntity, out var playerData))
         {
-            if (Plugin.FactorAllies.Value)
+            if (playerData.IsConnected == false)
             {
-                var playerAllies = GetAllies(playerData.CharEntity);
-                if (playerAllies.AllyCount > 0)
+                if (Plugin.FactorAllies.Value)
                 {
-                    foreach (var ally in playerAllies.Allies)
+                    var playerAllies = GetAllies(playerData.CharEntity);
+                    if (playerAllies.AllyCount > 0)
                     {
-                        Cache.PlayerCache.TryGetValue(ally, out var allyData);
-                        if (allyData.IsConnected) return;
+                        foreach (var ally in playerAllies.Allies)
+                        {
+                            Cache.PlayerCache.TryGetValue(ally, out var allyData);
+                            if (allyData.IsConnected) return;
+                        }
                     }
                 }
-            }
 
-            statChange.Change = 0;
+                statChange.Change = 0;
+                statChange.OriginalChange = 0;
+            }
+        }
+        else
+        {
+            Plugin.Logger.LogWarning("Owner could not be found, damage will apply.");
         }
     }
 
@@ -72,5 +101,25 @@ internal class StatChange
 
     ReturnResult:
         return playerGroup;
+    }
+
+    public static void EntityComponentDumper(string filePath, Entity entity)
+    {
+        File.AppendAllText(filePath, $"--------------------------------------------------" + Environment.NewLine);
+        File.AppendAllText(filePath, $"Dumping components of {entity.ToString()}:" + Environment.NewLine);
+
+        foreach (var componentType in VWorld.Server.EntityManager.GetComponentTypes(entity))
+        { File.AppendAllText(filePath, $"{componentType.ToString()}" + Environment.NewLine); }
+
+        File.AppendAllText(filePath, $"--------------------------------------------------" + Environment.NewLine);
+
+        File.AppendAllText(filePath, DumpEntity(entity));
+    }
+
+    private static string DumpEntity(Entity entity, bool fullDump = true)
+    {
+        var sb = new Il2CppSystem.Text.StringBuilder();
+        ProjectM.EntityDebuggingUtility.DumpEntity(VWorld.Server, entity, fullDump, sb);
+        return sb.ToString();
     }
 }
