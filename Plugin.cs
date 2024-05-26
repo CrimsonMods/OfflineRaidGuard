@@ -101,13 +101,8 @@ public class Plugin : BasePlugin, IRunOnInitialized
         SystemsCore = Core.SystemsCore;
 
         Helper.GetServerGameManager(out Helper.SGM);
-        Helper.CreatePlayerCache();
 
         isInitialized = true;
-
-        EventsHandlerSystem.OnUserConnected += Helper.UserConnected;
-        EventsHandlerSystem.OnUserDisconnected += Helper.UserDisconnected;
-
     }
 
     private static void GameDataOnDestroy()

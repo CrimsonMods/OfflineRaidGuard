@@ -3,7 +3,8 @@
     <TargetFramework>net6.0</TargetFramework>
     <AssemblyName>OfflineRaidGuard</AssemblyName>
     <Description>Only allow raiding when the defenders (user-specific or clan) are online.</Description>
-    <Version>0.1.1</Version>
+	<Authors>SkyTech6</Authors>
+    <Version>0.1.4</Version>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <LangVersion>latest</LangVersion>
     <RootNamespace>OfflineRaidGuard</RootNamespace>
@@ -11,12 +12,18 @@
     <FileVersion>0.1.8.0</FileVersion>
     <InformationalVersion>0.1.8+1.Branch.main.Sha.4435243bd013dc988e1f142db6f6cf5c889d1a5e</InformationalVersion>
   </PropertyGroup>
+	<Target Name="Thunderstore Copy to Dist" AfterTargets="AfterBuild" Condition=" '$(Configuration' == 'Release'">
+		<Copy SourceFiles="$(OutDir)\OfflineRaidGuard.dll" DestinationFolder="$(SolutionDir)/dist" />
+	</Target>
   <ItemGroup>
-    <PackageReference Include="BepInEx.Unity.IL2CPP" Version="6.0.0-be.690" IncludeAssets="compile" />
-    <PackageReference Include="BepInEx.Core" Version="6.0.0-be.690" IncludeAssets="compile" />
+    <PackageReference Include="BepInEx.Unity.IL2CPP" Version="6.0.0-be.691" IncludeAssets="compile" />
+    <PackageReference Include="BepInEx.Core" Version="6.0.0-be.691" IncludeAssets="compile" />
     <PackageReference Include="BepInEx.PluginInfoProps" Version="2.*" />
     <PackageReference Include="Bloody.Core" Version="1.2.2" />
     <PackageReference Include="VRising.Unhollowed.Client" Version="1.0.2.794360001" />
     <PackageReference Include="VRising.Bloodstone" Version="0.2.1" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include=".github\workflows\build.yml" />
   </ItemGroup>
 </Project>

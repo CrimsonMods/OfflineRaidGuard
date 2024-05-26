@@ -7,6 +7,8 @@ using ProjectM.Gameplay.Systems;
 using System;
 using System.IO;
 using Unity.Entities;
+using Bloody.Core.GameData.v1;
+using System.Linq;
 
 namespace OfflineRaidGuard.Hooks;
 
@@ -23,8 +25,6 @@ internal class StatChange
         {
             return;
         }
-
-        EntityComponentDumper("statChange.json", statChange.Entity);
 
         if (!VWorld.Server.EntityManager.HasComponent<CastleHeartConnection>(statChange.Entity))
         {
@@ -53,19 +53,28 @@ internal class StatChange
             userEntity = VWorld.Server.EntityManager.GetComponentData<UserOwner>(heartEntity).Owner._Entity;
         }
 
-        if (Cache.PlayerCache.TryGetValue(userEntity, out var playerData))
+        var playerCache = GameData.Users.All.ToList();
+        if (playerCache.Exists(x => x.Entity == userEntity))
         {
+            var playerData = playerCache.First(x => x.Entity == userEntity);
+            Plugin.Logger.LogInfo($"Castle Heart Owner is found to be {playerData.CharacterName}.");
             if (playerData.IsConnected == false)
             {
                 if (Plugin.FactorAllies.Value)
                 {
-                    var playerAllies = GetAllies(playerData.CharEntity);
+                    var playerAllies = GetAllies(playerData.Character.Entity);
                     if (playerAllies.AllyCount > 0)
                     {
                         foreach (var ally in playerAllies.Allies)
                         {
-                            Cache.PlayerCache.TryGetValue(ally, out var allyData);
-                            if (allyData.IsConnected) return;
+                            if (playerCache.Exists(x => x.Entity == ally))
+                            {
+                                var allyData = playerCache.First(x => x.Entity == ally);
+                                if (allyData.IsConnected)
+                                {
+                                    Plugin.Logger.LogInfo($"Castle Heart Owner ({playerData.CharacterName}) Clan Member ({allyData.CharacterName} is Connected, Raiding them is allowed.");
+                                }
+                            }
                         }
                     }
                 }
@@ -73,10 +82,16 @@ internal class StatChange
                 statChange.Change = 0;
                 statChange.OriginalChange = 0;
             }
+            else
+            {
+                Plugin.Logger.LogInfo($"Castle Heart Owner ({playerData.CharacterName}) is Connected, Raiding them is allowed.");
+            }
         }
         else
         {
-            Plugin.Logger.LogWarning("Owner could not be found, damage will apply.");
+            statChange.Change = 0;
+            statChange.OriginalChange = 0;
+            Plugin.Logger.LogWarning("Owner could not be found, damage will not apply. This should be reported to SkyTech6 on the V Rising Discord community Technical Support channel.");
         }
     }
 
