@@ -16,12 +16,12 @@
 		<Copy SourceFiles="$(OutDir)\OfflineRaidGuard.dll" DestinationFolder="$(SolutionDir)/dist" />
 	</Target>
   <ItemGroup>
-    <PackageReference Include="BepInEx.Unity.IL2CPP" Version="6.0.0-be.691" IncludeAssets="compile" />
-    <PackageReference Include="BepInEx.Core" Version="6.0.0-be.691" IncludeAssets="compile" />
+    <PackageReference Include="BepInEx.Unity.IL2CPP" Version="6.0.0-be.719" IncludeAssets="compile" />
+    <PackageReference Include="BepInEx.Core" Version="6.0.0-be.719" IncludeAssets="compile" />
     <PackageReference Include="BepInEx.PluginInfoProps" Version="2.*" />
-    <PackageReference Include="Bloody.Core" Version="1.2.2" />
+    <PackageReference Include="Bloody.Core" Version="1.2.4" />
     <PackageReference Include="VRising.Bloodstone" Version="0.2.2" />
-    <PackageReference Include="VRising.Unhollowed.Client" Version="1.0.2.794360001" />
+    <PackageReference Include="VRising.Unhollowed.Client" Version="1.0.5.802790001" />
   </ItemGroup>
   <ItemGroup>
     <None Include=".github\workflows\build.yml" />
