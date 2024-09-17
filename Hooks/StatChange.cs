@@ -4,94 +4,69 @@ using OfflineRaidGuard.Utils;
 using ProjectM;
 using ProjectM.CastleBuilding;
 using ProjectM.Gameplay.Systems;
+using ProjectM.Network;
 using System;
-using System.IO;
+using Unity.Collections;
 using Unity.Entities;
-using Bloody.Core.GameData.v1;
-using System.Linq;
 
 namespace OfflineRaidGuard.Hooks;
 
 [HarmonyPatch]
 internal class StatChange
 {
-    [HarmonyPatch(typeof(StatChangeSystem), nameof(StatChangeSystem.ApplyHealthChangeToEntity))]
+    [HarmonyPatch(typeof(DealDamageSystem), nameof(DealDamageSystem.OnUpdate))]
     [HarmonyPrefix]
-    private static void ApplyHealthChangeToEntity(StatChangeSystem __instance, ref StatChangeEvent statChange)
+    static void OnUpdatePrefix(DealDamageSystem __instance)
     {
-        if (!Plugin.EnableMod.Value) return;
-
-        if (!statChange.HasFlag(StatChangeFlag.AnnounceCastleAttack))
+        NativeArray<Entity> entities = __instance._Query.ToEntityArray(Allocator.TempJob);
+        try
         {
-            return;
-        }
-
-        if (!VWorld.Server.EntityManager.HasComponent<CastleHeartConnection>(statChange.Entity))
-        {
-            Plugin.Logger.LogWarning($"No Castle Heart Connection Found");
-            return;
-        }
-        
-        var heartEntity = VWorld.Server.EntityManager.GetComponentData<CastleHeartConnection>(statChange.Entity).CastleHeartEntity._Entity;
-
-        if (!VWorld.Server.EntityManager.HasComponent<CastleHeart>(heartEntity))
-        {
-            Plugin.Logger.LogWarning($"No Castle Heart Found");
-            return;
-        } 
-        var castleHeart = VWorld.Server.EntityManager.GetComponentData<CastleHeart>(heartEntity);
-
-        if (!castleHeart.State.HasFlag(CastleHeartState.IsProcessing))
-        {
-            Plugin.Logger.LogWarning($"Castle State ({castleHeart.State}) != IsProcessing; Castle must be decaying");
-            return;
-        }
-
-        if (!Cache.PlyonOwnerCache.TryGetValue(heartEntity, out Entity userEntity))
-        {
-            Plugin.Logger.LogWarning($"PlyonOwnerCache did not contain this heart. Finding Owner");
-            userEntity = VWorld.Server.EntityManager.GetComponentData<UserOwner>(heartEntity).Owner._Entity;
-        }
-
-        var playerCache = GameData.Users.All.ToList();
-        if (playerCache.Exists(x => x.Entity == userEntity))
-        {
-            var playerData = playerCache.First(x => x.Entity == userEntity);
-            Plugin.Logger.LogInfo($"Castle Heart Owner is found to be {playerData.CharacterName}.");
-            if (playerData.IsConnected == false)
+            foreach (Entity entity in entities)
             {
-                if (Plugin.FactorAllies.Value)
+                if (!Plugin.EnableMod.Value) continue;
+
+                DealDamageEvent dealDamageEvent = entity.Read<DealDamageEvent>();
+                if (dealDamageEvent.MainType != MainDamageType.Physical && dealDamageEvent.MainType != MainDamageType.Spell) continue;
+
+                if (!dealDamageEvent.Target.TryGetComponent(out CastleHeartConnection heartConn)) continue;
+                if (!heartConn.CastleHeartEntity._Entity.TryGetComponent(out CastleHeart heart)) continue;
+                if (!heart.State.HasFlag(CastleHeartState.IsProcessing)) continue;
+                if (!heartConn.CastleHeartEntity._Entity.TryGetComponent(out UserOwner owner)) continue;
+                if (!owner.Owner._Entity.TryGetComponent(out User ownerUser)) continue;
+
+                Entity clanEntity = VWorld.Server.EntityManager.Exists(ownerUser.ClanEntity._Entity) ? ownerUser.ClanEntity._Entity : Entity.Null;
+
+                if (Plugin.FactorAllies.Value && !clanEntity.Equals(Entity.Null))
                 {
-                    var playerAllies = GetAllies(playerData.Character.Entity);
-                    if (playerAllies.AllyCount > 0)
+                    var userBufffer = ownerUser.ClanEntity._Entity.ReadBuffer<SyncToUserBuffer>();
+
+                    foreach (var item in userBufffer)
                     {
-                        foreach (var ally in playerAllies.Allies)
+                        Entity clanUser = item.UserEntity;
+                        if (clanUser.TryGetComponent(out User clanPlayer))
                         {
-                            if (playerCache.Exists(x => x.Entity == ally))
-                            {
-                                var allyData = playerCache.First(x => x.Entity == ally);
-                                if (allyData.IsConnected)
-                                {
-                                    Plugin.Logger.LogInfo($"Castle Heart Owner ({playerData.CharacterName}) Clan Member ({allyData.CharacterName} is Connected, Raiding them is allowed.");
-                                }
-                            }
+                            if (clanPlayer.IsConnected) continue;
+
+                            if (clanPlayer.TimeLastConnected < Plugin.MaxAllyCacheAge.Value) continue;
                         }
+                        else continue;
                     }
                 }
 
-                statChange.Change = 0;
-                statChange.OriginalChange = 0;
-            }
-            else
-            {
-                Plugin.Logger.LogInfo($"Castle Heart Owner ({playerData.CharacterName}) is Connected, Raiding them is allowed.");
+                if (ownerUser.IsConnected) continue;
+                if (ownerUser.TimeLastConnected < Plugin.MaxAllyCacheAge.Value) continue;
+
+                VWorld.Server.EntityManager.DestroyEntity(entity);
+                continue;
             }
         }
-        else
+        catch (Exception ex)
         {
-            statChange.Change = 0;
-            statChange.OriginalChange = 0;
-            Plugin.Logger.LogWarning("Owner could not be found, damage will not apply. This should be reported to SkyTech6 on the V Rising Discord community Technical Support channel.");
+            
+        }
+        finally
+        {
+            entities.Dispose();
         }
     }
 
@@ -116,25 +91,5 @@ internal class StatChange
 
     ReturnResult:
         return playerGroup;
-    }
-
-    public static void EntityComponentDumper(string filePath, Entity entity)
-    {
-        File.AppendAllText(filePath, $"--------------------------------------------------" + Environment.NewLine);
-        File.AppendAllText(filePath, $"Dumping components of {entity.ToString()}:" + Environment.NewLine);
-
-        foreach (var componentType in VWorld.Server.EntityManager.GetComponentTypes(entity))
-        { File.AppendAllText(filePath, $"{componentType.ToString()}" + Environment.NewLine); }
-
-        File.AppendAllText(filePath, $"--------------------------------------------------" + Environment.NewLine);
-
-        File.AppendAllText(filePath, DumpEntity(entity));
-    }
-
-    private static string DumpEntity(Entity entity, bool fullDump = true)
-    {
-        var sb = new Il2CppSystem.Text.StringBuilder();
-        ProjectM.EntityDebuggingUtility.DumpEntity(VWorld.Server, entity, fullDump, sb);
-        return sb.ToString();
     }
 }
