@@ -1,3 +1,5 @@
+## NOTICE - THIS IS THE FINAL UPDATE FOR OFFLINE RAID GUARD. THIS FUNCTIONALITY WILL BE PART OF CrimsonRaidGuard WHEN IT RELEASES.
+
 # OfflineRaidGuard
 ### Server Only Mod
 Protect offline players from being sieged.\
@@ -29,15 +31,16 @@ This cache is only for allies gathering, their online/offline status is updated 
 
 Want to support my V Rising Mod development? 
 
-Join [Vexor World]() where I create exclusive content mods
-
-Donations Accepted with [Ko-Fi](https://ko-fi.com/skytech6)
+Donations Accepted
+[![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/skytech6)
 
 Or buy/play my games! 
 
 [Train Your Minibot](https://store.steampowered.com/app/713740/Train_Your_Minibot/) 
 
 [Boring Movies](https://store.steampowered.com/app/1792500/Boring_Movies/)
+
+**This mod was a paid creation. If you are looking to hire someone to make a mod for any Unity game reach out to me on Discord! (skytech6)**
 
 ## Credits
 This is ported and modified from [CasualSiege](https://github.com/Kaltharos/VRising-CasualSiege)
